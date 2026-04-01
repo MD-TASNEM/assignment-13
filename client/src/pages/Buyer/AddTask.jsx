@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { taskAPI } from "@/services/api";
+import { uploadToImageBB, fileToBase64 } from "@/utils/imageUpload";
 import toast from "react-hot-toast";
+import { FaImage } from "react-icons/fa";
 
 export default function AddTask() {
   const { user } = useAuth();
@@ -17,6 +19,9 @@ export default function AddTask() {
     task_image_url: "",
   });
   const [loading, setLoading] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -24,6 +29,50 @@ export default function AddTask() {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImageFile(file);
+
+    // Create preview
+    try {
+      const preview = await fileToBase64(file);
+      setImagePreview(preview);
+    } catch (error) {
+      toast.error("Failed to create image preview");
+    }
+  };
+
+  const handleImageUpload = async () => {
+    if (!imageFile) {
+      toast.error("Please select an image first");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const result = await uploadToImageBB(imageFile);
+
+      if (result.success) {
+        setFormData((prev) => ({
+          ...prev,
+          task_image_url: result.url,
+        }));
+        toast.success("Image uploaded successfully!");
+        setImageFile(null);
+        // Keep preview visible
+      } else {
+        toast.error(result.error || "Image upload failed");
+      }
+    } catch (error) {
+      toast.error("Error uploading image");
+      console.error(error);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -82,6 +131,7 @@ export default function AddTask() {
         submission_info: "",
         task_image_url: "",
       });
+      setImagePreview(null);
 
       // Navigate to my tasks
       navigate("/dashboard/buyer-my-tasks");
@@ -215,19 +265,64 @@ export default function AddTask() {
             ></textarea>
           </div>
 
-          {/* Task Image URL */}
+          {/* Task Image Upload */}
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">
-              Task Image URL
+            <label className="block text-gray-700 font-semibold mb-2 flex items-center gap-2">
+              <FaImage /> Task Image
             </label>
+
+            {/* Image Preview */}
+            {imagePreview && (
+              <div className="mb-4">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-full max-h-64 object-cover rounded-lg"
+                />
+              </div>
+            )}
+
+            {/* Image Upload Status */}
+            {formData.task_image_url && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-green-700 text-sm">
+                  ✓ Image uploaded successfully
+                </p>
+              </div>
+            )}
+
+            {/* File Input */}
+            <div className="flex gap-2">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="flex-1 p-2 border border-gray-300 rounded-lg input-field"
+              />
+              <button
+                type="button"
+                onClick={handleImageUpload}
+                disabled={!imageFile || uploading}
+                className="btn-secondary disabled:opacity-50"
+              >
+                {uploading ? "Uploading..." : "Upload"}
+              </button>
+            </div>
+
+            <p className="text-gray-600 text-sm mt-2">
+              Or enter image URL manually:
+            </p>
             <input
               type="url"
               name="task_image_url"
               value={formData.task_image_url}
               onChange={handleChange}
-              className="input-field"
+              className="input-field mt-2"
               placeholder="https://example.com/image.jpg"
             />
+            <p className="text-gray-500 text-xs mt-1">
+              Max file size: 5MB. Supported: JPG, PNG, GIF, WebP
+            </p>
           </div>
 
           <button

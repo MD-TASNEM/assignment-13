@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { taskAPI, submissionAPI } from "@/services/api";
 import toast from "react-hot-toast";
 
 export default function TaskDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [task, setTask] = useState(null);
   const [submissionDetails, setSubmissionDetails] = useState("");
@@ -12,22 +14,21 @@ export default function TaskDetails() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    // TODO: Fetch task details from API
-    setTask({
-      id: 1,
-      title: "Watch YouTube Video and Comment",
-      detail:
-        "Watch our YouTube video for 5 minutes and leave a meaningful comment.",
-      buyer_name: "John Doe",
-      buyer_email: "john@example.com",
-      payable_amount: 10,
-      required_workers: 50,
-      completion_date: "2024-12-31",
-      submission_info: "Submit screenshot of your comment",
-      task_image_url: "https://via.placeholder.com/400x300",
-    });
-    setLoading(false);
+    fetchTaskDetails();
   }, [id]);
+
+  const fetchTaskDetails = async () => {
+    try {
+      setLoading(true);
+      const response = await taskAPI.getTask(id);
+      setTask(response.data);
+    } catch (error) {
+      toast.error("Failed to load task details");
+      navigate("/worker-task-list");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,11 +40,21 @@ export default function TaskDetails() {
         return;
       }
 
-      // TODO: Submit to API
+      // Submit to API
+      await submissionAPI.createSubmission({
+        task_id: task._id,
+        task_title: task.title,
+        submission_details: submissionDetails,
+        payable_amount: task.payable_amount,
+      });
+
       toast.success("Submission successful! Waiting for review.");
       setSubmissionDetails("");
+      navigate("/worker-submissions");
     } catch (error) {
-      toast.error("Failed to submit. Please try again.");
+      toast.error(
+        error.response?.data?.message || "Failed to submit. Please try again.",
+      );
     } finally {
       setSubmitting(false);
     }

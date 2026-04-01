@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { uploadToImageBB, fileToBase64 } from "@/utils/imageUpload";
 import toast from "react-hot-toast";
+import { FaUser } from "react-icons/fa";
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -12,6 +14,9 @@ export default function Register() {
     role: "Worker",
   });
   const [loading, setLoading] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const { registerUser } = useAuth();
   const navigate = useNavigate();
 
@@ -21,6 +26,49 @@ export default function Register() {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImageFile(file);
+
+    // Create preview
+    try {
+      const preview = await fileToBase64(file);
+      setImagePreview(preview);
+    } catch (error) {
+      toast.error("Failed to create image preview");
+    }
+  };
+
+  const handleImageUpload = async () => {
+    if (!imageFile) {
+      toast.error("Please select an image first");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const result = await uploadToImageBB(imageFile);
+
+      if (result.success) {
+        setFormData((prev) => ({
+          ...prev,
+          photoUrl: result.url,
+        }));
+        toast.success("Profile photo uploaded!");
+        setImageFile(null);
+      } else {
+        toast.error(result.error || "Upload failed");
+      }
+    } catch (error) {
+      toast.error("Error uploading image");
+      console.error(error);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -113,16 +161,54 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">
-              Profile Picture URL
+            <label className="block text-gray-700 font-semibold mb-2 flex items-center gap-2">
+              <FaUser /> Profile Picture
             </label>
+
+            {/* Photo Preview */}
+            {imagePreview && (
+              <div className="mb-3">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-32 h-32 object-cover rounded-lg"
+                />
+              </div>
+            )}
+
+            {/* Upload Success */}
+            {formData.photoUrl && (
+              <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                ✓ Photo uploaded
+              </div>
+            )}
+
+            {/* File Input */}
+            <div className="flex gap-2 mb-3">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="flex-1 text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleImageUpload}
+                disabled={!imageFile || uploading}
+                className="btn-secondary text-sm disabled:opacity-50"
+              >
+                {uploading ? "..." : "Upload"}
+              </button>
+            </div>
+
+            {/* Manual URL */}
             <input
               type="url"
               name="photoUrl"
               value={formData.photoUrl}
               onChange={handleChange}
-              className="input-field"
-              placeholder="https://example.com/photo.jpg"
+              className="input-field text-sm"
+              placeholder="Or paste image URL"
             />
           </div>
 

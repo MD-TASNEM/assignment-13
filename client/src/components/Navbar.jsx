@@ -1,12 +1,11 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { FaUser, FaBell, FaSignOutAlt } from "react-icons/fa";
-import { useState } from "react";
+import { FaUser, FaSignOutAlt } from "react-icons/fa";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [showNotifications, setShowNotifications] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -57,17 +56,7 @@ export default function Navbar() {
               <div className="text-sm text-gray-600">
                 <span className="font-semibold">{user?.coins || 0}</span> Coins
               </div>
-              <div className="relative">
-                <button
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative"
-                >
-                  <FaBell className="text-xl" />
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    0
-                  </span>
-                </button>
-              </div>
+              <NotificationBell />
               <div className="flex gap-3 items-center">
                 <img
                   src={user?.photo_url || "https://via.placeholder.com/40"}

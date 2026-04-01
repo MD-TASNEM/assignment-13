@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useStripe, useElements, CardElement } from "@stripe/react-stripe-js";
+import { paymentAPI } from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 
 const coinPacks = [
@@ -12,6 +14,7 @@ const coinPacks = [
 export default function PurchaseCoin() {
   const stripe = useStripe();
   const elements = useElements();
+  const { user, setUser } = useAuth();
   const [selectedPack, setSelectedPack] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -25,22 +28,68 @@ export default function PurchaseCoin() {
     e.preventDefault();
 
     if (!stripe || !elements) {
+      toast.error("Stripe not loaded. Please refresh and try again.");
+      return;
+    }
+
+    if (!selectedPack) {
       return;
     }
 
     setLoading(true);
 
     try {
-      // TODO: Create payment intent on server
+      // Create payment intent on server
+      const intentResponse = await paymentAPI.createPaymentIntent(
+        selectedPack.coins,
+        selectedPack.price,
+      );
+      const { clientSecret } = intentResponse.data;
+
       const cardElement = elements.getElement(CardElement);
 
-      // TODO: Confirm payment with Stripe
+      // Confirm payment with Stripe
+      const { error, paymentIntent } = await stripe.confirmCardPayment(
+        clientSecret,
+        {
+          payment_method: {
+            card: cardElement,
+            billing_details: {
+              name: user?.name || "Anonymous",
+              email: user?.email || "anonymous@example.com",
+            },
+          },
+        },
+      );
 
-      toast.success(`Successfully purchased ${selectedPack.coins} coins!`);
-      setShowPaymentForm(false);
-      setSelectedPack(null);
+      if (error) {
+        toast.error(error.message || "Payment failed");
+      } else if (paymentIntent.status === "succeeded") {
+        // Confirm payment on server and add coins
+        await paymentAPI.confirmPayment(
+          paymentIntent.id,
+          selectedPack.coins,
+          selectedPack.price,
+        );
+
+        // Update user context with new coin balance
+        const updatedUser = {
+          ...user,
+          coins: (user?.coins || 0) + selectedPack.coins,
+        };
+        setUser(updatedUser);
+
+        toast.success(
+          `Successfully purchased ${selectedPack.coins} coins! Your new balance: ${updatedUser.coins}`,
+        );
+        setShowPaymentForm(false);
+        setSelectedPack(null);
+      }
     } catch (error) {
-      toast.error("Payment failed. Please try again.");
+      console.error("Payment error:", error);
+      toast.error(
+        error.response?.data?.message || "Payment failed. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
